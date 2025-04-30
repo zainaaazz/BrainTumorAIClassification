@@ -8,6 +8,11 @@ from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropou
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.callbacks import ReduceLROnPlateau
+from tensorflow.keras.regularizers import l2
+
+from sklearn.utils.class_weight import compute_class_weight
+import numpy as np
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -77,39 +82,39 @@ test = test_datagen.flow_from_directory(
 #Step 3 - MODEL ARCHITECTURE - Building the Convolutional Neural Network (CNN)
 # CNNs are designed to work well with image data
 #They automatically learn to detect patterns like edges, shapes, textures, and then more complex features
+
 model = Sequential([
 
     #1st convolutional layer: applies 32 filters (3x3) and ReLU activation
-    Conv2D(32, (3,3), activation='relu', input_shape=(150,150,3)),
-    MaxPooling2D(2,2), # Downsample the image to reduce complexity
+    Conv2D(32, (3,3), activation='relu', kernel_regularizer=l2(0.0005), input_shape=(150,150,3)),
+    MaxPooling2D(2,2),
 
     # 2nd conv + pooling
-    Conv2D(64, (3,3), activation='relu'),
+    Conv2D(64, (3,3), activation='relu', kernel_regularizer=l2(0.0005)),
     MaxPooling2D(2,2),
 
     #3rd Conv + pooling
-    Conv2D(128, (3,3), activation='relu'),
+    Conv2D(128, (3,3), activation='relu', kernel_regularizer=l2(0.0005)),
     MaxPooling2D(2,2),
 
     #4th Conv + pooling
-    Conv2D(256, (3,3), activation='relu'),
+    Conv2D(256, (3,3), activation='relu', kernel_regularizer=l2(0.0005)),
     MaxPooling2D(2,2),
-    #This number (256) refers to the number of filters (or "feature detectors") in the layer — not the size of the image.
-    
-
 
     #flatten the 3D output to 1D for the fully connected layers
     Flatten(),
 
     # Fully connected layer with 128 neurons
     Dense(128, activation='relu'),
-
+    
      #dropout layer to  randomly "turns off" some neurons to prevent overfitting
     Dropout(0.5),
 
      #output layer: 4 neurons for the 4 tumor types, softmax gives probabilities
     Dense(4, activation='softmax')  # 4 output classes
 ])
+
+
 
 # STEP 4: Compiling the the Model 
 # Before training, we define:
@@ -124,12 +129,15 @@ model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accur
 # can adjust the number of `epochs` (how many times the model sees the entire dataset)
 
 #Step 6: Add Early Stopping 
+
+
 early_stop = EarlyStopping(
-    monitor='val_loss',       # Watch validation loss
-    patience=6,               # Stop if no improvement after 3 epochs
-    restore_best_weights=True,  # Roll back to best-performing model
-    verbose=1  # Prints when it stops early
+    monitor='val_loss',# Watch validation loss
+    patience=7,               # More training cycles before stopping,  # Stop if no improvement after 7 epochs
+    restore_best_weights=True,# Roll back to best-performing model
+    verbose=1# Prints when it stops early
 )
+
 
 # Add learning rate reducer to fine-tune the model if val_loss plateaus
 reduce_lr = ReduceLROnPlateau(
@@ -140,13 +148,35 @@ reduce_lr = ReduceLROnPlateau(
     verbose=1
 )
 
+
+
+
+# Get class labels (order matches directory order)
+class_labels = list(train.class_indices.keys())
+
+# Count actual samples
+total_train = sum(train_df['Image_Count'])
+class_counts = train_df.set_index('Tumor_Type').loc[class_labels]['Image_Count'].to_numpy()
+
+# Compute weights
+class_weights_array = compute_class_weight(class_weight='balanced', classes=np.arange(len(class_labels)), y=np.repeat(np.arange(len(class_labels)), class_counts))
+class_weights = dict(enumerate(class_weights_array))
+
+print("Class Weights:", class_weights)
+
+
+
+
 # Step 7 train
+
 history = model.fit(
     train,
     validation_data=test,
-    epochs=20,                # Go up to 20, but early stopping will kick in
-    callbacks=[early_stop, reduce_lr]
+    epochs=20,  # Go up to 20, but early stopping will kick in
+    callbacks=[early_stop, reduce_lr],
+    #class_weight=class_weights
 )
+
 
 #step 8  Save 
 #allow to reuse the trained model in Streamlit/other applications
@@ -154,8 +184,8 @@ history = model.fit(
 
 if not os.path.exists("model"):
     os.makedirs("model")
-model.save("model/brain_tumor_model4.h5")
-print("Model saved to model/brain_tumor_model.h5")
+model.save("model/brain_tumor_model5.h5")
+print("Model saved to model/brain_tumor_model5.h5")
 
 # ==== Plot Accuracy ====
 plt.figure(figsize=(10, 4))
