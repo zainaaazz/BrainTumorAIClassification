@@ -226,8 +226,6 @@ print('\nFinal Evaluation on Test Data:')
 print('Test Loss:', score[0])
 print('Test Accuracy:', score[1])
 
-
-
 # Predict on test set
 test.reset()  # Important: reset before predicting
 y_pred = model.predict(test)
