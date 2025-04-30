@@ -117,7 +117,7 @@ model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accur
 #Step 6: Add Early Stopping 
 early_stop = EarlyStopping(
     monitor='val_loss',       # Watch validation loss
-    patience=3,               # Stop if no improvement after 3 epochs
+    patience=5,               # Stop if no improvement after 3 epochs
     restore_best_weights=True,  # Roll back to best-performing model
     verbose=1  # Prints when it stops early
 )
@@ -136,7 +136,7 @@ history = model.fit(
 
 if not os.path.exists("model"):
     os.makedirs("model")
-model.save("model/brain_tumor_model.h5")
+model.save("model/brain_tumor_model2.h5")
 print("Model saved to model/brain_tumor_model.h5")
 
 # ==== Plot Accuracy ====
@@ -162,7 +162,13 @@ plt.grid(True)
 
 # Show both plots
 plt.tight_layout()
+
+# ==== Save the figure to the model folder ====
+plt.savefig("model/training_performance.png")
+
+# Show it in the console window
 plt.show()
+
 
 # ==== Evaluate Final Model Performance ====
 score = model.evaluate(test)
