@@ -1,3 +1,4 @@
+
 #importing all the required libraries
 import os
 import numpy as np
@@ -12,6 +13,7 @@ from tensorflow.keras.regularizers import l2
 
 from sklearn.utils.class_weight import compute_class_weight
 import numpy as np
+from sklearn.metrics import confusion_matrix, classification_report
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -223,3 +225,30 @@ score = model.evaluate(test)
 print('\nFinal Evaluation on Test Data:')
 print('Test Loss:', score[0])
 print('Test Accuracy:', score[1])
+
+
+
+# Predict on test set
+test.reset()  # Important: reset before predicting
+y_pred = model.predict(test)
+y_pred_classes = np.argmax(y_pred, axis=1)
+y_true = test.classes
+class_names = list(test.class_indices.keys())
+
+# Confusion Matrix
+cm = confusion_matrix(y_true, y_pred_classes)
+
+plt.figure(figsize=(8,6))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+            xticklabels=class_names,
+            yticklabels=class_names)
+plt.title("Confusion Matrix")
+plt.xlabel("Predicted Label")
+plt.ylabel("True Label")
+plt.tight_layout()
+plt.savefig("model/confusion_matrix_model6.png")
+plt.show()
+
+# Optional: classification report
+print("\nClassification Report:\n")
+print(classification_report(y_true, y_pred_classes, target_names=class_names))
