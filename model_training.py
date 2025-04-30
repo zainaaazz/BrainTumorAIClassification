@@ -1,29 +1,24 @@
+# === Brain Tumor Classification using Transfer Learning (ResNet50) ===
 
-#importing all the required libraries
 import os
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, Dropout, GlobalAveragePooling2D
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.callbacks import ReduceLROnPlateau
+from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.regularizers import l2
-
 from sklearn.utils.class_weight import compute_class_weight
-import numpy as np
-from sklearn.metrics import confusion_matrix, classification_report
-
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-#Step 1: definnig my paths to the data
+# ==== Step 1: Set Paths ====
 train_path = "data/Training"
 test_path = "data/Testing"
 
-# ==== Class Distribution Count and Visualization ====
-# Function to Count Images
+# ==== Step 2: Count Images per Class ====
 def get_class_distribution(path):
     classes = os.listdir(path)
     data = []
@@ -33,220 +28,103 @@ def get_class_distribution(path):
         data.append({'Tumor_Type': class_name, 'Image_Count': count})
     return pd.DataFrame(data)
 
-# Training Data Class Count
 train_df = get_class_distribution(train_path)
+test_df = get_class_distribution(test_path)
+
 print("Training Data Class Distribution:")
 print(train_df)
-
-# Testing Data Class Count
-test_df = get_class_distribution(test_path)
 print("\nTesting Data Class Distribution:")
 print(test_df)
 
-# Plotting the class distribution
-plt.figure(figsize=(10,4))
-
-plt.subplot(1,2,1)
+# ==== Step 3: Plot Class Distribution ====
+plt.figure(figsize=(10, 4))
+plt.subplot(1, 2, 1)
 sns.barplot(x='Tumor_Type', y='Image_Count', data=train_df)
 plt.title('Training Data Distribution')
 
-plt.subplot(1,2,2)
+plt.subplot(1, 2, 2)
 sns.barplot(x='Tumor_Type', y='Image_Count', data=test_df)
 plt.title('Testing Data Distribution')
-
 plt.tight_layout()
+os.makedirs("model", exist_ok=True)
+plt.savefig("model/class_distribution.png")
 plt.show()
 
-# sTEP 2 : data augmentation & Preprocessingg -creates "artificial" variations of existing images to help the model generalise better
-#flipping, zooming or slightly rotating images to simulate different scenarios
+# ==== Step 4: Data Preprocessing & Augmentation ====
 train_datagen = ImageDataGenerator(
-    rescale=1./255, #normalizsing pixel values from 0–255 to 0–1
-    shear_range=0.2, #Applying shearing (slanting) transformation
-    zoom_range=0.2, #random zooming inside the image
-    horizontal_flip=True  #randomly flipping some images left-right
+    preprocessing_function=preprocess_input,
+    shear_range=0.2,
+    zoom_range=0.2,
+    horizontal_flip=True
 )
-test_datagen = ImageDataGenerator(rescale=1./255)   # Only normalise test data (no augmentation)
+test_datagen = ImageDataGenerator(preprocessing_function=preprocess_input)
 
 train = train_datagen.flow_from_directory(
-    train_path,
-    target_size=(150, 150), #resizing all images to 150x150 pixels 
-    # Larger inputs preserve more image detail (important for subtle medical patterns).
-    batch_size=32, #process 32 images at a time
-    class_mode='categorical'   # coz this is a multi-class classification  w/ 4 tumor types
+    train_path, target_size=(224, 224), batch_size=32, class_mode='categorical'
 )
 test = test_datagen.flow_from_directory(
-    test_path,
-    target_size=(150, 150),
-    batch_size=32,
-    class_mode='categorical'
+    test_path, target_size=(224, 224), batch_size=32, class_mode='categorical'
 )
 
-#Step 3 - MODEL ARCHITECTURE - Building the Convolutional Neural Network (CNN)
-# CNNs are designed to work well with image data
-#They automatically learn to detect patterns like edges, shapes, textures, and then more complex features
-
-model = Sequential([
-
-    #1st convolutional layer: applies 32 filters (3x3) and ReLU activation
-    Conv2D(32, (3,3), activation='relu', kernel_regularizer=l2(0.0005), input_shape=(150,150,3)),
-    MaxPooling2D(2,2),
-
-    # 2nd conv + pooling
-    Conv2D(64, (3,3), activation='relu', kernel_regularizer=l2(0.0005)),
-    MaxPooling2D(2,2),
-
-    #3rd Conv + pooling
-    Conv2D(128, (3,3), activation='relu', kernel_regularizer=l2(0.0005)),
-    MaxPooling2D(2,2),
-
-    #4th Conv + pooling
-    Conv2D(256, (3,3), activation='relu', kernel_regularizer=l2(0.0005)),
-    MaxPooling2D(2,2),
-
-    #flatten the 3D output to 1D for the fully connected layers
-    Flatten(),
-
-    # Fully connected layer with 128 neurons
-    Dense(128, activation='relu'),
-    
-     #dropout layer to  randomly "turns off" some neurons to prevent overfitting
-    Dropout(0.5),
-
-     #output layer: 4 neurons for the 4 tumor types, softmax gives probabilities
-    Dense(4, activation='softmax')  # 4 output classes
-])
-
-
-
-# STEP 4: Compiling the the Model 
-# Before training, we define:
-# - optimizer: how the model improves itself (Adam is a popular choice)
-# - loss function: how it measures "error"
-# - metrics: wE want to track accuracy in this case
-
-model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-
-# STERP 5 Training the Model 
-#fits (trains) the model using your data
-# can adjust the number of `epochs` (how many times the model sees the entire dataset)
-
-#Step 6: Add Early Stopping 
-
-
-early_stop = EarlyStopping(
-    monitor='val_loss',# Watch validation loss
-    patience=7,               # More training cycles before stopping,  # Stop if no improvement after 7 epochs
-    restore_best_weights=True,# Roll back to best-performing model
-    verbose=1# Prints when it stops early
-)
-
-
-# Add learning rate reducer to fine-tune the model if val_loss plateaus
-reduce_lr = ReduceLROnPlateau(
-    monitor='val_loss',
-    factor=0.5,
-    patience=2,
-    min_lr=1e-6,
-    verbose=1
-)
-
-
-
-
-# Get class labels (order matches directory order)
+# ==== Step 5: Compute Class Weights ====
 class_labels = list(train.class_indices.keys())
-
-# Count actual samples
 total_train = sum(train_df['Image_Count'])
 class_counts = train_df.set_index('Tumor_Type').loc[class_labels]['Image_Count'].to_numpy()
-
-# Compute weights
-class_weights_array = compute_class_weight(class_weight='balanced', classes=np.arange(len(class_labels)), y=np.repeat(np.arange(len(class_labels)), class_counts))
+class_weights_array = compute_class_weight(class_weight='balanced',
+                                           classes=np.arange(len(class_labels)),
+                                           y=np.repeat(np.arange(len(class_labels)), class_counts))
 class_weights = dict(enumerate(class_weights_array))
-
 print("Class Weights:", class_weights)
 
+# ==== Step 6: Load Pretrained Model ====
+base_model = ResNet50(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+for layer in base_model.layers:
+    layer.trainable = False
 
+x = base_model.output
+x = GlobalAveragePooling2D()(x)
+x = Dense(128, activation='relu', kernel_regularizer=l2(0.0005))(x)
+x = Dropout(0.5)(x)
+predictions = Dense(4, activation='softmax')(x)
+model = Model(inputs=base_model.input, outputs=predictions)
 
+# ==== Step 7: Compile Model ====
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
-# Step 7 train
+# ==== Step 8: Callbacks ====
+early_stop = EarlyStopping(monitor='val_loss', patience=6, restore_best_weights=True, verbose=1)
+reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=2, min_lr=1e-6, verbose=1)
 
+# ==== Step 9: Train Model ====
 history = model.fit(
-    train,
-    validation_data=test,
-    epochs=20,  # Go up to 20, but early stopping will kick in
-    callbacks=[early_stop, reduce_lr],
-    #class_weight=class_weights
+    train, validation_data=test, epochs=20,
+    callbacks=[early_stop, reduce_lr], class_weight=class_weights
 )
 
+# ==== Step 10: Save Model ====
+model.save("model/brain_tumor_resnet50.h5")
+print("Model saved to model/brain_tumor_resnet50.h5")
 
-#step 8  Save 
-#allow to reuse the trained model in Streamlit/other applications
-#saves the model architecture + learned weights in a file
-
-if not os.path.exists("model"):
-    os.makedirs("model")
-model.save("model/brain_tumor_model5.h5")
-print("Model saved to model/brain_tumor_model5.h5")
-
-# ==== Plot Accuracy ====
+# ==== Step 11: Visualize Accuracy & Loss ====
 plt.figure(figsize=(10, 4))
 plt.subplot(1, 2, 1)
-plt.plot(history.history['accuracy'], label='Training Accuracy', marker='o')
-plt.plot(history.history['val_accuracy'], label='Validation Accuracy', marker='x')
-plt.title('Training vs Validation Accuracy')
-plt.xlabel('Epochs')
-plt.ylabel('Accuracy')
+plt.plot(history.history['accuracy'], label='Train Acc', marker='o')
+plt.plot(history.history['val_accuracy'], label='Val Acc', marker='x')
+plt.title("Accuracy")
 plt.legend()
-plt.grid(True)
 
-# ==== Plot Loss ====
 plt.subplot(1, 2, 2)
-plt.plot(history.history['loss'], label='Training Loss', marker='o')
-plt.plot(history.history['val_loss'], label='Validation Loss', marker='x')
-plt.title('Training vs Validation Loss')
-plt.xlabel('Epochs')
-plt.ylabel('Loss')
+plt.plot(history.history['loss'], label='Train Loss', marker='o')
+plt.plot(history.history['val_loss'], label='Val Loss', marker='x')
+plt.title("Loss")
 plt.legend()
-plt.grid(True)
 
-# Show both plots
 plt.tight_layout()
-
-# ==== Save the figure to the model folder ====
-plt.savefig("model/training_performance.png")
-
-# Show it in the console window
+plt.savefig("model/training_performance_resnet.png")
 plt.show()
 
-
-# ==== Evaluate Final Model Performance ====
+# ==== Step 12: Final Evaluation ====
 score = model.evaluate(test)
-print('\nFinal Evaluation on Test Data:')
-print('Test Loss:', score[0])
-print('Test Accuracy:', score[1])
-
-# Predict on test set
-test.reset()  # Important: reset before predicting
-y_pred = model.predict(test)
-y_pred_classes = np.argmax(y_pred, axis=1)
-y_true = test.classes
-class_names = list(test.class_indices.keys())
-
-# Confusion Matrix
-cm = confusion_matrix(y_true, y_pred_classes)
-
-plt.figure(figsize=(8,6))
-sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-            xticklabels=class_names,
-            yticklabels=class_names)
-plt.title("Confusion Matrix")
-plt.xlabel("Predicted Label")
-plt.ylabel("True Label")
-plt.tight_layout()
-plt.savefig("model/confusion_matrix_model6.png")
-plt.show()
-
-# Optional: classification report
-print("\nClassification Report:\n")
-print(classification_report(y_true, y_pred_classes, target_names=class_names))
+print("\nFinal Evaluation on Test Data:")
+print("Test Loss:", score[0])
+print("Test Accuracy:", score[1])
