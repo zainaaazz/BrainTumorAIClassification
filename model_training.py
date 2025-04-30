@@ -7,6 +7,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.callbacks import ReduceLROnPlateau
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -122,12 +123,21 @@ early_stop = EarlyStopping(
     verbose=1  # Prints when it stops early
 )
 
+# Add learning rate reducer to fine-tune the model if val_loss plateaus
+reduce_lr = ReduceLROnPlateau(
+    monitor='val_loss',
+    factor=0.5,
+    patience=2,
+    min_lr=1e-6,
+    verbose=1
+)
+
 # Step 7 train
 history = model.fit(
     train,
     validation_data=test,
     epochs=20,                # Go up to 20, but early stopping will kick in
-    callbacks=[early_stop]
+    callbacks=[early_stop, reduce_lr]
 )
 
 #step 8  Save 
@@ -136,7 +146,7 @@ history = model.fit(
 
 if not os.path.exists("model"):
     os.makedirs("model")
-model.save("model/brain_tumor_model2.h5")
+model.save("model/brain_tumor_model3.h5")
 print("Model saved to model/brain_tumor_model.h5")
 
 # ==== Plot Accuracy ====
