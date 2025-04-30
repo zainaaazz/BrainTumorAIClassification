@@ -8,11 +8,46 @@ from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropou
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.callbacks import EarlyStopping
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 #Step 1: definnig my paths to the data
 train_path = "data/Training"
 test_path = "data/Testing"
 
+# ==== Class Distribution Count and Visualization ====
+# Function to Count Images
+def get_class_distribution(path):
+    classes = os.listdir(path)
+    data = []
+    for class_name in classes:
+        class_path = os.path.join(path, class_name)
+        count = len(os.listdir(class_path))
+        data.append({'Tumor_Type': class_name, 'Image_Count': count})
+    return pd.DataFrame(data)
+
+# Training Data Class Count
+train_df = get_class_distribution(train_path)
+print("Training Data Class Distribution:")
+print(train_df)
+
+# Testing Data Class Count
+test_df = get_class_distribution(test_path)
+print("\nTesting Data Class Distribution:")
+print(test_df)
+
+# Plotting the class distribution
+plt.figure(figsize=(10,4))
+
+plt.subplot(1,2,1)
+sns.barplot(x='Tumor_Type', y='Image_Count', data=train_df)
+plt.title('Training Data Distribution')
+
+plt.subplot(1,2,2)
+sns.barplot(x='Tumor_Type', y='Image_Count', data=test_df)
+plt.title('Testing Data Distribution')
+
+plt.tight_layout()
+plt.show()
 
 # sTEP 2 : data augmentation & Preprocessingg -creates "artificial" variations of existing images to help the model generalise better
 #flipping, zooming or slightly rotating images to simulate different scenarios
@@ -104,8 +139,6 @@ if not os.path.exists("model"):
 model.save("model/brain_tumor_model.h5")
 print("Model saved to model/brain_tumor_model.h5")
 
-
-
 # ==== Plot Accuracy ====
 plt.figure(figsize=(10, 4))
 plt.subplot(1, 2, 1)
@@ -130,3 +163,9 @@ plt.grid(True)
 # Show both plots
 plt.tight_layout()
 plt.show()
+
+# ==== Evaluate Final Model Performance ====
+score = model.evaluate(test)
+print('\nFinal Evaluation on Test Data:')
+print('Test Loss:', score[0])
+print('Test Accuracy:', score[1])
