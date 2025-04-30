@@ -62,13 +62,14 @@ test_datagen = ImageDataGenerator(rescale=1./255)   # Only normalise test data (
 
 train = train_datagen.flow_from_directory(
     train_path,
-    target_size=(128, 128), #resizing all images to 128x128 pixels
+    target_size=(150, 150), #resizing all images to 150x150 pixels 
+    # Larger inputs preserve more image detail (important for subtle medical patterns).
     batch_size=32, #process 32 images at a time
     class_mode='categorical'   # coz this is a multi-class classification  w/ 4 tumor types
 )
 test = test_datagen.flow_from_directory(
     test_path,
-    target_size=(128, 128),
+    target_size=(150, 150),
     batch_size=32,
     class_mode='categorical'
 )
@@ -79,7 +80,7 @@ test = test_datagen.flow_from_directory(
 model = Sequential([
 
     #1st convolutional layer: applies 32 filters (3x3) and ReLU activation
-    Conv2D(32, (3,3), activation='relu', input_shape=(128,128,3)),
+    Conv2D(32, (3,3), activation='relu', input_shape=(150,150,3)),
     MaxPooling2D(2,2), # Downsample the image to reduce complexity
 
     # 2nd conv + pooling
@@ -89,6 +90,13 @@ model = Sequential([
     #3rd Conv + pooling
     Conv2D(128, (3,3), activation='relu'),
     MaxPooling2D(2,2),
+
+    #4th Conv + pooling
+    Conv2D(256, (3,3), activation='relu'),
+    MaxPooling2D(2,2),
+    #This number (256) refers to the number of filters (or "feature detectors") in the layer — not the size of the image.
+    
+
 
     #flatten the 3D output to 1D for the fully connected layers
     Flatten(),
@@ -118,7 +126,7 @@ model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accur
 #Step 6: Add Early Stopping 
 early_stop = EarlyStopping(
     monitor='val_loss',       # Watch validation loss
-    patience=5,               # Stop if no improvement after 3 epochs
+    patience=6,               # Stop if no improvement after 3 epochs
     restore_best_weights=True,  # Roll back to best-performing model
     verbose=1  # Prints when it stops early
 )
@@ -146,7 +154,7 @@ history = model.fit(
 
 if not os.path.exists("model"):
     os.makedirs("model")
-model.save("model/brain_tumor_model3.h5")
+model.save("model/brain_tumor_model4.h5")
 print("Model saved to model/brain_tumor_model.h5")
 
 # ==== Plot Accuracy ====
