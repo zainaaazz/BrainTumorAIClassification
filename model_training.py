@@ -6,6 +6,8 @@ import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.callbacks import EarlyStopping
+import matplotlib.pyplot as plt
 
 #Step 1: definnig my paths to the data
 train_path = "data/Training"
@@ -77,9 +79,23 @@ model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accur
 #fits (trains) the model using your data
 # can adjust the number of `epochs` (how many times the model sees the entire dataset)
 
-model.fit(train, validation_data=test, epochs=5)
+#Step 6: Add Early Stopping 
+early_stop = EarlyStopping(
+    monitor='val_loss',       # Watch validation loss
+    patience=3,               # Stop if no improvement after 3 epochs
+    restore_best_weights=True,  # Roll back to best-performing model
+    verbose=1  # Prints when it stops early
+)
 
-#step 6  Save the Model
+# Step 7 train
+history = model.fit(
+    train,
+    validation_data=test,
+    epochs=20,                # Go up to 20, but early stopping will kick in
+    callbacks=[early_stop]
+)
+
+#step 8  Save 
 #allow to reuse the trained model in Streamlit/other applications
 #saves the model architecture + learned weights in a file
 
@@ -87,3 +103,30 @@ if not os.path.exists("model"):
     os.makedirs("model")
 model.save("model/brain_tumor_model.h5")
 print("Model saved to model/brain_tumor_model.h5")
+
+
+
+# ==== Plot Accuracy ====
+plt.figure(figsize=(10, 4))
+plt.subplot(1, 2, 1)
+plt.plot(history.history['accuracy'], label='Training Accuracy', marker='o')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy', marker='x')
+plt.title('Training vs Validation Accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Accuracy')
+plt.legend()
+plt.grid(True)
+
+# ==== Plot Loss ====
+plt.subplot(1, 2, 2)
+plt.plot(history.history['loss'], label='Training Loss', marker='o')
+plt.plot(history.history['val_loss'], label='Validation Loss', marker='x')
+plt.title('Training vs Validation Loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
+plt.grid(True)
+
+# Show both plots
+plt.tight_layout()
+plt.show()
