@@ -64,12 +64,15 @@ train_datagen = ImageDataGenerator(
 
 test_datagen = ImageDataGenerator(preprocessing_function=preprocess_input)
 
+
+
 train = train_datagen.flow_from_directory(
-    train_path, target_size=(224, 224), batch_size=32, class_mode='categorical'
+    train_path, target_size=(224, 224), batch_size=64, class_mode='categorical'
 )
 test = test_datagen.flow_from_directory(
-    test_path, target_size=(224, 224), batch_size=32, class_mode='categorical'
+    test_path, target_size=(224, 224), batch_size=64, class_mode='categorical'
 )
+
 
 # ==== Step 5: Compute Class Weights ====
 class_labels = list(train.class_indices.keys())
